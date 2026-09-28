@@ -1,0 +1,298 @@
+﻿@page "/"
+
+@inject IUsuarioApiService UsuarioService
+@inject ITransaccionApiService TransaccionService
+@inject NavigationManager Navigation
+
+<PageTitle>Resumen financiero</PageTitle>
+
+<div class="mb-4">
+    <h1>Resumen financiero</h1>
+
+    <p class="text-muted">
+        Resumen general de ingresos, gastos y saldos por usuario.
+    </p>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger">
+        @error
+    </div>
+}
+
+<div class="card mb-4">
+    <div class="card-body">
+
+        <label class="form-label">
+            Usuario
+        </label>
+
+        <select class="form-select"
+                value="@UsuarioId"
+                @onchange="UsuarioSeleccionado">
+
+            <option value="0">
+                Seleccione un usuario
+            </option>
+
+            @foreach (var usuario in usuarios)
+            {
+                <option value="@usuario.UsuarioId">
+                    @usuario.NombreUsuario
+                </option>
+            }
+
+        </select>
+
+    </div>
+</div>
+
+@if (cargando)
+{
+    <p>Cargando...</p>
+}
+else if (UsuarioId == 0)
+{
+    <div class="alert alert-info">
+        Seleccione un usuario para consultar su resumen financiero.
+    </div>
+}
+else if (resumen is null)
+{
+    <div class="alert alert-info">
+        No hay información financiera disponible para el usuario seleccionado.
+    </div>
+}
+else
+{
+    <div class="mb-4">
+        <h4>
+            @resumen.NombreUsuario
+        </h4>
+    </div>
+
+    <div class="row g-3 mb-4">
+
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+
+                    <div class="text-muted mb-2">
+                        Total ingresos
+                    </div>
+
+                    <div class="fs-3 fw-bold">
+                        @FormatearMonto(resumen.TotalIngresos)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+
+                    <div class="text-muted mb-2">
+                        Total gastos
+                    </div>
+
+                    <div class="fs-3 fw-bold">
+                        @FormatearMonto(resumen.TotalGastos)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+
+                    <div class="text-muted mb-2">
+                        Saldo total
+                    </div>
+
+                    <div class="fs-3 fw-bold">
+                        @FormatearMonto(resumen.SaldoTotal)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+
+            <h5 class="card-title mb-3">
+                Resumen por cuenta
+            </h5>
+
+            @if (!resumen.Cuentas.Any())
+            {
+                <div class="alert alert-info mb-0">
+                    El usuario no tiene cuentas activas.
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle mb-0">
+
+                        <thead>
+                            <tr>
+                                <th>Cuenta</th>
+
+                                <th class="text-end">
+                                    Ingresos
+                                </th>
+
+                                <th class="text-end">
+                                    Gastos
+                                </th>
+
+                                <th class="text-end">
+                                    Saldo
+                                </th>
+
+                                <th class="text-end">
+                                    Acciones
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            @foreach (var cuenta in resumen.Cuentas)
+                            {
+                                <tr>
+                                    <td>
+                                        @cuenta.NombreCuenta
+                                    </td>
+
+                                    <td class="text-end">
+                                        @FormatearMonto(cuenta.TotalIngresos)
+                                    </td>
+
+                                    <td class="text-end">
+                                        @FormatearMonto(cuenta.TotalGastos)
+                                    </td>
+
+                                    <td class="text-end fw-semibold">
+                                        @FormatearMonto(cuenta.Saldo)
+                                    </td>
+
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary"
+                                                @onclick="() => VerTransacciones(cuenta.CuentaId)">
+                                                Ver transacciones
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+
+    [SupplyParameterFromQuery(Name = "usuarioId")]
+    public int UsuarioId { get; set; }
+
+    private List<UsuarioDto> usuarios = [];
+
+    private ResumenFinancieroUsuarioDto? resumen;
+
+    private bool cargando = true;
+
+    private string? error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await InicializarAsync();
+    }
+
+    private async Task InicializarAsync()
+    {
+        try
+        {
+            cargando = true;
+            error = null;
+            resumen = null;
+
+            var resultado =
+                await UsuarioService.ObtenerTodosAsync();
+
+            usuarios = resultado.ToList();
+
+            if (UsuarioId == 0)
+            {
+                return;
+            }
+
+            var usuarioExiste = usuarios
+                .Any(u => u.UsuarioId == UsuarioId);
+
+            if (!usuarioExiste)
+            {
+                error = "El usuario indicado no existe o está inactivo.";
+                return;
+            }
+
+            resumen = await TransaccionService
+                    .ObtenerResumenUsuarioAsync(UsuarioId);
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error =
+                "No fue posible cargar el resumen financiero.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private void UsuarioSeleccionado(ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out var nuevoUsuarioId))
+        {
+            nuevoUsuarioId = 0;
+        }
+
+        if (nuevoUsuarioId == 0)
+        {
+            Navigation.NavigateTo("/");
+
+            return;
+        }
+
+        Navigation.NavigateTo($"/?usuarioId={nuevoUsuarioId}");
+    }
+
+    private void VerTransacciones(int cuentaId)
+    {
+        Navigation.NavigateTo(
+            $"/transacciones" +
+            $"?usuarioId={UsuarioId}" +
+            $"&cuentaId={cuentaId}");
+    }
+
+    private static string FormatearMonto(decimal monto)
+    {
+        return $"₡{monto:N2}";
+    }
+}

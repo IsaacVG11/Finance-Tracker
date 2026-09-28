@@ -1,0 +1,167 @@
+﻿@page "/cuentas/nueva"
+
+@inject ICuentaApiService CuentaService
+@inject IUsuarioApiService UsuarioService
+@inject NavigationManager Navigation
+
+<PageTitle>Nueva cuenta</PageTitle>
+
+<h1>Nueva cuenta</h1>
+
+@if (cargando)
+{
+    <p>Cargando...</p>
+}
+else if (!string.IsNullOrWhiteSpace(errorCarga))
+{
+    <div class="alert alert-danger">
+        @errorCarga
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body">
+
+            <p>
+                <strong>Usuario:</strong>
+                @nombreUsuario
+            </p>
+
+            @if (!string.IsNullOrWhiteSpace(error))
+            {
+                <div class="alert alert-danger">
+                    @error
+                </div>
+            }
+
+            <EditForm Model="modelo"
+                      OnValidSubmit="GuardarAsync">
+
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label class="form-label">
+                        Nombre de la cuenta
+                    </label>
+
+                    <InputText class="form-control"
+                               @bind-Value="modelo.NombreCuenta" />
+
+                    <ValidationMessage For="@(() => modelo.NombreCuenta)" />
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit"
+                            class="btn btn-primary"
+                            disabled="@guardando">
+                        @(guardando
+                            ? "Guardando..."
+                            : "Guardar")
+                    </button>
+
+                    <button type="button"
+                            class="btn btn-secondary"
+                            @onclick="Cancelar">
+                        Cancelar
+                    </button>
+                </div>
+
+            </EditForm>
+
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "usuarioId")]
+    public int UsuarioId { get; set; }
+
+    private CrearCuentaRequest modelo = new();
+
+    private string nombreUsuario = string.Empty;
+
+    private bool cargando = true;
+    private bool guardando;
+
+    private string? error;
+    private string? errorCarga;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            cargando = true;
+
+            if (UsuarioId <= 0)
+            {
+                errorCarga =
+                    "No se especificó un usuario válido.";
+
+                return;
+            }
+
+            var usuario =
+                await UsuarioService
+                    .ObtenerUsuarioPorIdAsync(UsuarioId);
+
+            if (usuario is null)
+            {
+                errorCarga =
+                    "El usuario no existe o está inactivo.";
+
+                return;
+            }
+
+            nombreUsuario =
+                usuario.NombreUsuario;
+
+            modelo.UsuarioId =
+                usuario.UsuarioId;
+        }
+        catch (Exception)
+        {
+            errorCarga =
+                "No fue posible cargar el usuario.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task GuardarAsync()
+    {
+        try
+        {
+            guardando = true;
+            error = null;
+
+            await CuentaService
+                .CrearAsync(modelo);
+
+            Navigation.NavigateTo("/cuentas");
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error = "Ocurrió un error inesperado.";
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private void Cancelar()
+    {
+        Navigation.NavigateTo("/cuentas");
+    }
+}

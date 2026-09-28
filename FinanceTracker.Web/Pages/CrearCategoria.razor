@@ -1,0 +1,197 @@
+﻿@page "/categorias/nueva"
+
+@inject ICategoriaApiService CategoriaService
+@inject IUsuarioApiService UsuarioService
+@inject NavigationManager Navigation
+
+<PageTitle>Nueva categoría</PageTitle>
+
+<h1>Nueva categoría</h1>
+
+@if (cargando)
+{
+    <p>Cargando...</p>
+}
+else if (!string.IsNullOrWhiteSpace(errorCarga))
+{
+    <div class="alert alert-danger">
+        @errorCarga
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body">
+
+            <p>
+                <strong>Usuario:</strong>
+                @nombreUsuario
+            </p>
+
+            @if (!string.IsNullOrWhiteSpace(error))
+            {
+                <div class="alert alert-danger">
+                    @error
+                </div>
+            }
+
+            <EditForm Model="modelo" OnValidSubmit="GuardarAsync">
+
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label class="form-label">
+                        Tipo
+                    </label>
+
+                    <InputSelect class="form-select"
+                                 @bind-Value="modelo.Tipo">
+
+                        <option value="@TipoTransaccion.Ingreso">
+                            Ingreso
+                        </option>
+
+                        <option value="@TipoTransaccion.Gasto">
+                            Gasto
+                        </option>
+
+                    </InputSelect>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">
+                        Nombre
+                    </label>
+
+                    <InputText class="form-control"
+                               @bind-Value="modelo.NombreCategoria" />
+
+                    <ValidationMessage For="@(() => modelo.NombreCategoria)" />
+                </div>
+
+                <div class="d-flex gap-2">
+
+                    <button type="submit"
+                            class="btn btn-primary"
+                            disabled="@guardando">
+                        @(guardando
+                            ? "Guardando..."
+                            : "Guardar")
+                    </button>
+
+                    <button type="button"
+                            class="btn btn-secondary"
+                            @onclick="Cancelar">
+                        Cancelar
+                    </button>
+
+                </div>
+
+            </EditForm>
+
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "usuarioId")]
+    public int UsuarioId { get; set; }
+
+    private CrearCategoriaRequest modelo =
+        new();
+
+    private string nombreUsuario = string.Empty;
+
+    private bool cargando = true;
+
+    private bool guardando;
+
+    private string? error;
+
+    private string? errorCarga;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            cargando = true;
+
+            if (UsuarioId <= 0)
+            {
+                errorCarga = "No se especificó un usuario válido.";
+
+                return;
+            }
+
+            var usuario = await UsuarioService.ObtenerUsuarioPorIdAsync(UsuarioId);
+
+            if (usuario is null)
+            {
+                errorCarga = "El usuario no existe o está inactivo.";
+
+                return;
+            }
+
+            nombreUsuario =
+                usuario.NombreUsuario;
+
+            modelo.UsuarioId = usuario.UsuarioId;
+
+            modelo.Tipo = TipoTransaccion.Gasto;
+        }
+        catch (ApiException ex)
+        {
+            errorCarga = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            errorCarga =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            errorCarga =
+                "No fue posible cargar el usuario.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task GuardarAsync()
+    {
+        try
+        {
+            guardando = true;
+            error = null;
+
+            await CategoriaService.CrearAsync(modelo);
+
+            Navigation.NavigateTo("/categorias");
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error =
+                "Ocurrió un error inesperado.";
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private void Cancelar()
+    {
+        Navigation.NavigateTo("/categorias");
+    }
+}

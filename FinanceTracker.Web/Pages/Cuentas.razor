@@ -1,0 +1,260 @@
+﻿@page "/cuentas"
+
+@inject IUsuarioApiService UsuarioService
+@inject ICuentaApiService CuentaService
+@inject NavigationManager Navigation
+
+<PageTitle>Cuentas</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>Cuentas</h1>
+
+        <p class="text-muted">
+            Administración de cuentas por usuario.
+        </p>
+    </div>
+
+    <button class="btn btn-success"
+            disabled="@(usuarioSeleccionadoId == 0)"
+            @onclick="CrearCuenta">
+        Nueva cuenta
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger">
+        @error
+    </div>
+}
+
+<div class="card mb-4">
+    <div class="card-body">
+
+        <label class="form-label">
+            Usuario
+        </label>
+
+        <select class="form-select"
+                value="@usuarioSeleccionadoId"
+                @onchange="UsuarioSeleccionadoAsync">
+
+            <option value="0">
+                Seleccione un usuario
+            </option>
+
+            @foreach (var usuario in usuarios)
+            {
+                <option value="@usuario.UsuarioId">
+                    @usuario.NombreUsuario
+                </option>
+            }
+
+        </select>
+
+    </div>
+</div>
+
+@if (cargandoUsuarios)
+{
+    <p>Cargando usuarios...</p>
+}
+else if (usuarioSeleccionadoId == 0)
+{
+    <div class="alert alert-info">
+        Seleccione un usuario para consultar sus cuentas.
+    </div>
+}
+else if (cargandoCuentas)
+{
+    <p>Cargando cuentas...</p>
+}
+else if (cuentas.Count == 0)
+{
+    <div class="alert alert-info">
+        El usuario no tiene cuentas registradas.
+    </div>
+}
+else
+{
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Estado</th>
+                <th class="text-end">
+                    Acciones
+                </th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var cuenta in cuentas)
+            {
+                <tr>
+                    <td>@cuenta.NombreCuenta</td>
+
+                    <td>
+                        @if (cuenta.Activo)
+                        {
+                            <span class="badge bg-success">
+                                Activa
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">
+                                Inactiva
+                            </span>
+                        }
+                    </td>
+
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary me-2"
+                                @onclick="() => EditarCuenta(cuenta.CuentaId)">
+                            Editar
+                        </button>
+
+                        <button class="btn btn-sm btn-outline-danger"
+                                @onclick="() => DesactivarCuentaAsync(cuenta.CuentaId)">
+                            Desactivar
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<UsuarioDto> usuarios = [];
+    private List<CuentaDto> cuentas = [];
+
+    private int usuarioSeleccionadoId;
+
+    private bool cargandoUsuarios = true;
+    private bool cargandoCuentas;
+
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarUsuariosAsync();
+    }
+
+    private async Task CargarUsuariosAsync()
+    {
+        try
+        {
+            cargandoUsuarios = true;
+            error = null;
+
+            var resultado = await UsuarioService.ObtenerTodosAsync();
+
+            usuarios = resultado.ToList();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error =
+                "Ocurrió un error cargando los usuarios.";
+        }
+        finally
+        {
+            cargandoUsuarios = false;
+        }
+    }
+
+    private async Task UsuarioSeleccionadoAsync(ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(),out usuarioSeleccionadoId))
+        {
+            usuarioSeleccionadoId = 0;
+        }
+
+        cuentas.Clear();
+
+        if (usuarioSeleccionadoId == 0)
+        {
+            return;
+        }
+
+        await CargarCuentasAsync();
+    }
+
+    private async Task CargarCuentasAsync()
+    {
+        try
+        {
+            cargandoCuentas = true;
+            error = null;
+
+            var resultado = await CuentaService.ObtenerPorUsuarioAsync(usuarioSeleccionadoId);
+
+            cuentas = resultado.ToList();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error =
+                "Ocurrió un error cargando las cuentas.";
+        }
+        finally
+        {
+            cargandoCuentas = false;
+        }
+    }
+
+    private void CrearCuenta()
+    {
+        Navigation.NavigateTo($"/cuentas/nueva?usuarioId={usuarioSeleccionadoId}");
+    }
+
+    private void EditarCuenta(int cuentaId)
+    {
+        Navigation.NavigateTo($"/cuentas/{cuentaId}/editar");
+    }
+
+    private async Task DesactivarCuentaAsync(int cuentaId)
+    {
+        try
+        {
+            error = null;
+
+            await CuentaService.DesactivarAsync(cuentaId);
+
+            await CargarCuentasAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error =
+                "Ocurrió un error inesperado.";
+        }
+    }
+}

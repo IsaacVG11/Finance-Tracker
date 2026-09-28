@@ -1,0 +1,158 @@
+﻿@page "/usuarios/{UsuarioId:int}/editar";
+
+@inject IUsuarioApiService UsuarioService;
+@inject NavigationManager Navigation;
+
+<PageTitle>Editar Usuario</PageTitle>
+
+<h1>Editar Usuario</h1>
+
+@if (cargando)
+{
+    <p>Cargando usuario...</p>
+}
+else if(!string.IsNullOrWhiteSpace(errorCarga))
+{
+    <div class="alert alert-danger">
+        @errorCarga
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body">
+            @if (!string.IsNullOrWhiteSpace(error))
+            {
+                <div class="alert alert-danger">
+                    @error
+                </div>
+            }
+            else
+            {
+                <EditForm Model="modelo"
+                          OnValidSubmit="GuardarAsync">
+
+                    <DataAnnotationsValidator />
+
+                    <div class="mb-3">
+                        <label class="form-label">
+                            Nombre
+                        </label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="modelo.NombreUsuario" />
+
+                        <ValidationMessage For="@(() => modelo.NombreUsuario)" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">
+                            Email
+                        </label>
+
+                        <InputText class="form-control"
+                                   @bind-Value="modelo.Email" />
+
+                        <ValidationMessage For="@(() => modelo.Email)" />
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit"
+                                class="btn btn-primary"
+                                disabled="@guardando">
+                            @(guardando
+                                ? "Guardando..."
+                                : "Guardar cambios")
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-secondary"
+                                @onclick="Cancelar">
+                            Cancelar
+                        </button>
+                    </div>
+
+                </EditForm>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int UsuarioId { get; set; }
+
+    private ActualizarUsuarioRequest modelo = new();
+
+    private bool cargando = true;
+
+    private bool guardando;
+
+    private string? error;
+
+    private string? errorCarga;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            cargando = true;
+
+            var usuario = await UsuarioService.ObtenerUsuarioPorIdAsync(UsuarioId);
+
+            if(usuario is null)
+            {
+                errorCarga = "El usuario no existe";
+                return;
+            }
+
+            modelo = new ActualizarUsuarioRequest
+                {
+                    NombreUsuario = usuario.NombreUsuario,
+                    Email = usuario.Email,
+                };
+        }
+        catch (Exception)
+        {
+            errorCarga = "No fue posible cargar el usuario";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task GuardarAsync()
+    {
+        try
+        {
+            guardando = true;
+            error = null;
+
+            await UsuarioService.ActualizarUsuarioAsync(UsuarioId, modelo);
+            Navigation.NavigateTo("/usuarios");
+
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error = "Ocurrió un error inesperado.";
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private void Cancelar()
+    {
+        Navigation.NavigateTo("/usuarios");
+    }
+}

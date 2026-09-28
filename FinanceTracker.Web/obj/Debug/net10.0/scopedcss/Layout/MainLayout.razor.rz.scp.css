@@ -1,0 +1,46 @@
+.page[b-nih737xovu] {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar[b-nih737xovu] {
+    width: 240px;
+    background-color: #3CB371;
+    flex-shrink: 0;
+}
+
+.main-content[b-nih737xovu] {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: white;
+}
+
+.topbar[b-nih737xovu] {
+    height: 64px;
+    display: flex;
+    align-items: center;
+    padding: 0 2rem;
+    background-color: white;
+    border-bottom: 1px solid #e5e7eb;
+    font-weight: 600;
+}
+
+.content[b-nih737xovu] {
+    padding: 2rem;
+    flex: 1;
+}
+
+@media (max-width: 768px) {
+    .page[b-nih737xovu] {
+        flex-direction: column;
+    }
+
+    .sidebar[b-nih737xovu] {
+        width: 100%;
+    }
+
+    .content[b-nih737xovu] {
+        padding: 1rem;
+    }
+}

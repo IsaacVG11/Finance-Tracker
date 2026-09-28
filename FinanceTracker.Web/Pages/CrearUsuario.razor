@@ -1,0 +1,104 @@
+﻿@page "/usuarios/nuevo";
+
+@inject IUsuarioApiService UsuarioService;
+@inject NavigationManager Navigation;
+
+<PageTitle>Nuevo Usuario</PageTitle>
+
+<h1>Nuevo Usuario</h1>
+
+<div class="card">
+    <div class="card-body">
+        @if (!string.IsNullOrWhiteSpace(error))
+        {
+            <div class="alert alert-danger">
+                @error
+            </div>
+        }
+
+        <EditForm Model="modelo" OnValidSubmit="GuardarAsync">
+
+            <DataAnnotationsValidator />
+
+            <div class="mb-3">
+                <label class="form-label">
+                    Nombre
+                </label>
+
+                <InputText class="form-control" @bind-Value="modelo.NombreUsuario"/>
+                <ValidationMessage For="@(() => modelo.NombreUsuario)" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">
+                    Email
+                </label>
+
+                <InputText class="form-control" @bind-Value="modelo.Email"/>
+                <ValidationMessage For="@(() => modelo.Email)" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">
+                    Contraseña
+                </label>
+
+                <InputText class="form-control" @bind-Value="modelo.Contrasena" />
+                <ValidationMessage For="@(() => modelo.Contrasena)" />
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary" disabled="@guardando">
+                    @(guardando ? "Guardando..." : "Guardar")
+                </button>
+
+                <button type="button" class="btn btn-secondary" @onclick="Cancelar">
+                    Cancelar
+                </button>
+            </div>
+
+        </EditForm>
+
+    </div>
+</div>
+
+@code {
+    private CrearUsuarioRequest modelo = new();
+
+    private bool guardando;
+
+    private string? error;
+
+    private async Task GuardarAsync()
+    {
+        try
+        {
+            guardando = true;
+            error = null;
+
+            await UsuarioService.CrearUsuarioAsync(modelo);
+
+            Navigation.NavigateTo("/usuarios");
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error = "Ocurrió un error inesperado";
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private void Cancelar(){
+        Navigation.NavigateTo("/usuarios");
+    }
+}

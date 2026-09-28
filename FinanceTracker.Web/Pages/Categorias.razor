@@ -1,0 +1,283 @@
+﻿@page "/categorias"
+
+@inject IUsuarioApiService UsuarioService
+@inject ICategoriaApiService CategoriaService
+@inject NavigationManager Navigation
+
+<PageTitle>Categorías</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>Categorías</h1>
+
+        <p class="text-muted">
+            Administración de categorías por usuario.
+        </p>
+    </div>
+
+    <button class="btn btn-primary"
+            disabled="@(usuarioSeleccionadoId == 0)"
+            @onclick="CrearCategoria">
+        Nueva categoría
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger">
+        @error
+    </div>
+}
+
+<div class="card mb-4">
+    <div class="card-body">
+
+        <label class="form-label">
+            Usuario
+        </label>
+
+        <select class="form-select"
+                value="@usuarioSeleccionadoId"
+                @onchange="UsuarioSeleccionadoAsync">
+
+            <option value="0">
+                Seleccione un usuario
+            </option>
+
+            @foreach (var usuario in usuarios)
+            {
+                <option value="@usuario.UsuarioId">
+                    @usuario.NombreUsuario
+                </option>
+            }
+
+        </select>
+
+    </div>
+</div>
+
+@if (cargandoUsuarios)
+{
+    <p>Cargando usuarios...</p>
+}
+else if (usuarioSeleccionadoId == 0)
+{
+    <div class="alert alert-info">
+        Seleccione un usuario para consultar
+        sus categorías.
+    </div>
+}
+else if (cargandoCategorias)
+{
+    <p>Cargando categorías...</p>
+}
+else if (categorias.Count == 0)
+{
+    <div class="alert alert-info">
+        El usuario no tiene categorías registradas.
+    </div>
+}
+else
+{
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th>Estado</th>
+                <th class="text-end">
+                    Acciones
+                </th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var categoria in categorias)
+            {
+                <tr>
+                    <td>
+                        @categoria.NombreCategoria
+                    </td>
+
+                    <td>
+                        @if (categoria.Tipo == TipoTransaccion.Ingreso)
+                        {
+                            <span class="badge bg-success">
+                                Ingreso
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger">
+                                Gasto
+                            </span>
+                        }
+                    </td>
+
+                    <td>
+                        @if (categoria.Activo)
+                        {
+                            <span class="badge bg-success">
+                                Activa
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">
+                                Inactiva
+                            </span>
+                        }
+                    </td>
+
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary me-2"
+                                @onclick="() => EditarCategoria(categoria.CategoriaId)">
+                            Editar
+                        </button>
+
+                        <button class="btn btn-sm btn-outline-danger"
+                                @onclick="() => DesactivarCategoriaAsync(categoria.CategoriaId)">
+                            Desactivar
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<UsuarioDto> usuarios = [];
+
+    private List<CategoriaDto> categorias = [];
+
+    private int usuarioSeleccionadoId;
+
+    private bool cargandoUsuarios = true;
+
+    private bool cargandoCategorias;
+
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarUsuariosAsync();
+    }
+
+    private async Task CargarUsuariosAsync()
+    {
+        try
+        {
+            cargandoUsuarios = true;
+            error = null;
+
+            var resultado = await UsuarioService.ObtenerTodosAsync();
+
+            usuarios = resultado.ToList();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error =
+                "Ocurrió un error cargando los usuarios.";
+        }
+        finally
+        {
+            cargandoUsuarios = false;
+        }
+    }
+
+    private async Task UsuarioSeleccionadoAsync(ChangeEventArgs args)
+    {
+        if (!int.TryParse(
+                args.Value?.ToString(),
+                out usuarioSeleccionadoId))
+        {
+            usuarioSeleccionadoId = 0;
+        }
+
+        categorias.Clear();
+
+        if (usuarioSeleccionadoId == 0)
+        {
+            return;
+        }
+
+        await CargarCategoriasAsync();
+    }
+
+    private async Task CargarCategoriasAsync()
+    {
+        try
+        {
+            cargandoCategorias = true;
+            error = null;
+
+            var resultado = await CategoriaService.ObtenerPorUsuarioAsync(usuarioSeleccionadoId);
+
+            categorias = resultado.ToList();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error =
+                "Ocurrió un error cargando las categorías.";
+        }
+        finally
+        {
+            cargandoCategorias = false;
+        }
+    }
+
+    private void CrearCategoria()
+    {
+        Navigation.NavigateTo($"/categorias/nueva?usuarioId={usuarioSeleccionadoId}");
+    }
+
+    private void EditarCategoria(int categoriaId)
+    {
+        Navigation.NavigateTo($"/categorias/{categoriaId}/editar");
+    }
+
+    private async Task DesactivarCategoriaAsync(int categoriaId)
+    {
+        try
+        {
+            error = null;
+
+            await CategoriaService.DesactivarAsync(categoriaId);
+
+            await CargarCategoriasAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error =
+                "Ocurrió un error inesperado.";
+        }
+    }
+}

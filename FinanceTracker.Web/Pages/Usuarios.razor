@@ -1,0 +1,149 @@
+﻿@page "/usuarios"
+
+@inject IUsuarioApiService UsuarioService;
+@inject NavigationManager Navigation;
+
+
+<PageTitle>Usuarios</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>Usuarios</h1>
+        <p class="text-muted">
+            Administración de usuarios del sistema.
+        </p>
+    </div>
+
+    <button class="btn btn-success" @onclick="CrearUsuario">
+        Nuevo Usuario
+    </button>
+</div>
+
+@if (cargando)
+{
+    <p>Cargando usuarios...</p>
+}
+else if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger">
+        @error
+    </div>
+}
+else if (usuarios.Count == 0)
+{
+    <p>No existen usuarios registrados.</p>
+}
+else
+{
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Estado</th>
+                <th class="text-end">Acciones</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var usuario in usuarios)
+            {
+                <tr>
+                    <td>@usuario.NombreUsuario</td>
+                    <td>@usuario.Email</td>
+                    <td>
+                        @if (usuario.Activo)
+                        {
+                            <span class="badge bg-success">
+                                Activo
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">
+                                Inactivo
+                            </span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => EditarUsuario(usuario.UsuarioId)">
+                            Editar
+                        </button>
+
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DesactivarUsuario(usuario.UsuarioId)">
+                            Desactivar
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<UsuarioDto> usuarios = [];
+
+    private bool cargando = true;
+
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarUsuariosAsync();
+    }
+
+    private async Task CargarUsuariosAsync()
+    {
+        try
+        {
+            cargando = true;
+            error = null;
+
+            var resultado = await UsuarioService.ObtenerTodosAsync();
+            usuarios = resultado.ToList();
+        }
+        catch (Exception)
+        {
+            error = "No fue posible cargar los usuarios";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private void CrearUsuario()
+    {
+        Navigation.NavigateTo("/usuarios/nuevo");
+    }
+
+    private void EditarUsuario(int usuarioId)
+    {
+        Navigation.NavigateTo($"/usuarios/{usuarioId}/editar");
+    }
+
+    private async Task DesactivarUsuario(int usuarioId)
+    {
+        try
+        {
+            error = null;
+
+            await UsuarioService.DesactivarUsuarioAsync(usuarioId);
+
+            await CargarUsuariosAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error = "Ocurrió un error inesperado.";
+        }
+    }
+
+}

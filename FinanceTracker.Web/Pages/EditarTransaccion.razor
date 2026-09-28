@@ -1,0 +1,360 @@
+﻿@page "/transacciones/{TransaccionId:int}/editar"
+
+@inject ITransaccionApiService TransaccionService
+@inject ICategoriaApiService CategoriaService
+@inject ICuentaApiService CuentaService
+@inject NavigationManager Navigation
+
+<PageTitle>Editar transacción</PageTitle>
+
+<h1>Editar transacción</h1>
+
+@if (cargando)
+{
+    <p>Cargando...</p>
+}
+else if (!string.IsNullOrWhiteSpace(errorCarga))
+{
+    <div class="alert alert-danger">
+        @errorCarga
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(error))
+    {
+        <div class="alert alert-danger">
+            @error
+        </div>
+    }
+
+    <div class="card">
+        <div class="card-body">
+
+            <EditForm Model="modelo"
+                      OnValidSubmit="GuardarAsync">
+
+                <DataAnnotationsValidator />
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Tipo
+                        </label>
+
+                        <InputSelect TValue="TipoTransaccion"
+                                     class="form-select"
+                                     @bind-Value="modelo.Tipo"
+                                     @bind-Value:after="TipoCambiado">
+
+                            <option value="@TipoTransaccion.Ingreso">
+                                Ingreso
+                            </option>
+
+                            <option value="@TipoTransaccion.Gasto">
+                                Gasto
+                            </option>
+
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Categoría
+                        </label>
+
+                        <InputSelect class="form-select"
+                                     @bind-Value="modelo.CategoriaId">
+
+                            <option value="0">
+                                Seleccione una categoría
+                            </option>
+
+                            @foreach (var categoria in CategoriasFiltradas)
+                            {
+                                <option value="@categoria.CategoriaId">
+                                    @categoria.NombreCategoria
+                                </option>
+                            }
+
+                        </InputSelect>
+
+                        <ValidationMessage For="@(() => modelo.CategoriaId)" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Cantidad
+                        </label>
+
+                        <InputNumber class="form-control"
+                                     step="0.01"
+                                     @bind-Value="modelo.Cantidad" />
+
+                        <ValidationMessage For="@(() => modelo.Cantidad)" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            Fecha
+                        </label>
+
+                        <InputDate class="form-control"
+                                   @bind-Value="modelo.FechaTransaccion" />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">
+                            Descripción
+                        </label>
+
+                        <InputTextArea class="form-control"
+                                       rows="3"
+                                       @bind-Value="modelo.Descripcion" />
+
+                        <ValidationMessage For="@(() => modelo.Descripcion)" />
+                    </div>
+
+                </div>
+
+                <div class="d-flex gap-2 mt-4">
+
+                    <button type="submit"
+                            class="btn btn-primary"
+                            disabled="@guardando">
+                        @(guardando
+                            ? "Guardando..."
+                            : "Guardar cambios")
+                    </button>
+
+                    <button type="button"
+                            class="btn btn-secondary"
+                            disabled="@guardando"
+                            @onclick="Cancelar">
+                        Cancelar
+                    </button>
+
+                </div>
+
+            </EditForm>
+
+        </div>
+    </div>
+}
+
+@code {
+    
+    [Parameter]
+    public int TransaccionId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "usuarioId")]
+    public int UsuarioId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "cuentaId")]
+    public int CuentaId { get; set; }
+
+    private ActualizarTransaccionRequest modelo = new();
+
+    private List<CategoriaDto> categorias = [];
+
+    private bool cargando = true;
+    private bool guardando;
+
+    private string? error;
+    private string? errorCarga;
+
+    private IEnumerable<CategoriaDto> CategoriasFiltradas =>
+        categorias.Where(
+            c => c.Tipo == modelo.Tipo);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            cargando = true;
+            errorCarga = null;
+
+            if (UsuarioId <= 0 || CuentaId <= 0)
+            {
+                errorCarga =
+                    "El usuario o la cuenta no son válidos.";
+
+                return;
+            }
+
+            var transaccionTask =
+                TransaccionService
+                    .ObtenerPorIdAsync(TransaccionId);
+
+            var cuentaTask =
+                CuentaService
+                    .ObtenerPorIdAsync(CuentaId);
+
+            var categoriasTask =
+                CategoriaService
+                    .ObtenerPorUsuarioAsync(UsuarioId);
+
+            await Task.WhenAll(
+                transaccionTask,
+                cuentaTask,
+                categoriasTask);
+
+            var transaccion =
+                await transaccionTask;
+
+            var cuenta =
+                await cuentaTask;
+
+            if (transaccion is null)
+            {
+                errorCarga =
+                    "La transacción no existe.";
+
+                return;
+            }
+
+            if (cuenta is null ||
+                cuenta.UsuarioId != UsuarioId)
+            {
+                errorCarga =
+                    "La cuenta no es válida.";
+
+                return;
+            }
+
+            if (transaccion.CuentaId != CuentaId)
+            {
+                errorCarga =
+                    "La transacción no pertenece a la cuenta indicada.";
+
+                return;
+            }
+
+            if (transaccion.Estado ==
+                EstadoTransaccion.Anulada)
+            {
+                errorCarga =
+                    "Una transacción anulada no puede editarse.";
+
+                return;
+            }
+
+            categorias =
+                (await categoriasTask).ToList();
+
+            modelo =
+                new ActualizarTransaccionRequest
+                {
+                    CuentaId =
+                        transaccion.CuentaId,
+
+                    CategoriaId =
+                        transaccion.CategoriaId,
+
+                    Cantidad =
+                        transaccion.Cantidad,
+
+                    Tipo =
+                        transaccion.Tipo,
+
+                    Descripcion =
+                        transaccion.Descripcion,
+
+                    FechaTransaccion =
+                        transaccion.FechaTransaccion
+                };
+        }
+        catch (ApiException ex)
+        {
+            errorCarga = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            errorCarga =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            errorCarga =
+                "No fue posible cargar la transacción.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private void TipoCambiado()
+    {
+        modelo.CategoriaId = 0;
+    }
+
+    private async Task GuardarAsync()
+    {
+        try
+        {
+            guardando = true;
+            error = null;
+
+            var categoria =
+                categorias.FirstOrDefault(
+                    c => c.CategoriaId ==
+                         modelo.CategoriaId);
+
+            if (categoria is null)
+            {
+                error =
+                    "Debe seleccionar una categoría válida.";
+
+                return;
+            }
+
+            if (categoria.Tipo != modelo.Tipo)
+            {
+                error =
+                    "La categoría no corresponde al tipo de transacción.";
+
+                return;
+            }
+
+            await TransaccionService
+                .ActualizarAsync(
+                    TransaccionId,
+                    modelo);
+
+            Regresar();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error =
+                "Ocurrió un error inesperado.";
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private void Cancelar()
+    {
+        Regresar();
+    }
+
+    private void Regresar()
+    {
+        Navigation.NavigateTo(
+            $"/transacciones" +
+            $"?usuarioId={UsuarioId}" +
+            $"&cuentaId={CuentaId}");
+    }
+}

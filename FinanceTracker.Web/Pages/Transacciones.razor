@@ -1,0 +1,766 @@
+﻿@page "/transacciones"
+
+@inject NavigationManager Navigation
+@inject IUsuarioApiService UsuarioService
+@inject ICuentaApiService CuentaService
+@inject ICategoriaApiService CategoriaService
+@inject ITransaccionApiService TransaccionService
+
+<PageTitle>Transacciones</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>Transacciones</h1>
+
+        <p class="text-muted">
+            Consulta y administra los movimientos financieros.
+        </p>
+    </div>
+    
+    <button class="btn btn-primary"
+            disabled="@(CuentaId == 0)"
+            @onclick="CrearTransaccion">
+            Nueva Transaccion
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger">
+        @error
+    </div>
+}
+
+<div class="card mb-4">
+    <div class="card-body">
+
+        <div class="row g-3">
+
+            <div class="col-md-6">
+                <label class="form-label">
+                    Usuario
+                </label>
+
+                <select class="form-select"
+                        value="@UsuarioId"
+                        @onchange="UsuarioSeleccionado">
+
+                    <option value="0">
+                        Seleccione un usuario
+                    </option>
+
+                    @foreach (var usuario in usuarios)
+                    {
+                        <option value="@usuario.UsuarioId">
+                            @usuario.NombreUsuario
+                        </option>
+                    }
+
+                </select>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">
+                    Cuenta
+                </label>
+
+                <select class="form-select"
+                        value="@CuentaId"
+                        disabled="@(UsuarioId == 0)"
+                        @onchange="CuentaSeleccionada">
+
+                    <option value="0">
+                        Seleccione una cuenta
+                    </option>
+
+                    @foreach (var cuenta in cuentas)
+                    {
+                        <option value="@cuenta.CuentaId">
+                            @cuenta.NombreCuenta
+                        </option>
+                    }
+
+                </select>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+@if (CuentaId != 0)
+{
+    <div class="card mb-4">
+        <div class="card-body">
+
+            <h5 class="card-title">
+                Filtros
+            </h5>
+
+            <div class="row g-3">
+
+                <div class="col-md-2">
+                    <label class="form-label">
+                        Desde
+                    </label>
+
+                    <InputDate class="form-control"
+                               @bind-Value="filtro.Desde" />
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">
+                        Hasta
+                    </label>
+
+                    <InputDate class="form-control"
+                               @bind-Value="filtro.Hasta" />
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">
+                        Tipo
+                    </label>
+
+                    <InputSelect class="form-select"
+                                 @bind-Value="filtro.Tipo">
+
+                        <option value="">
+                            Todos
+                        </option>
+
+                        <option value="@TipoTransaccion.Ingreso">
+                            Ingreso
+                        </option>
+
+                        <option value="@TipoTransaccion.Gasto">
+                            Gasto
+                        </option>
+
+                    </InputSelect>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">
+                        Categoría
+                    </label>
+
+                    <InputSelect class="form-select"
+                                 @bind-Value="filtro.CategoriaId">
+
+                        <option value="">
+                            Todas
+                        </option>
+
+                        @foreach (var categoria in categorias)
+                        {
+                            <option value="@categoria.CategoriaId">
+                                @categoria.NombreCategoria
+                            </option>
+                        }
+
+                    </InputSelect>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">
+                        Estado
+                    </label>
+
+                    <InputSelect class="form-select"
+                                 @bind-Value="filtro.Estado">
+
+                        <option value="">
+                            Todos
+                        </option>
+
+                        <option value="@EstadoTransaccion.Activa">
+                            Activa
+                        </option>
+
+                        <option value="@EstadoTransaccion.Anulada">
+                            Anulada
+                        </option>
+
+                    </InputSelect>
+                </div>
+
+            </div>
+
+            <div class="d-flex gap-2 mt-3">
+
+                <button class="btn btn-primary"
+                        @onclick="AplicarFiltrosAsync">
+                    Aplicar
+                </button>
+
+                <button class="btn btn-outline-secondary"
+                        @onclick="LimpiarFiltrosAsync">
+                    Limpiar
+                </button>
+
+            </div>
+
+        </div>
+    </div>
+}
+
+@if (cargando)
+{
+    <p>Cargando...</p>
+}
+else if (CuentaId != 0)
+{
+    @if (saldo is not null)
+    {
+        <div class="row g-3 mb-4">
+
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="text-muted">
+                            Ingresos
+                        </div>
+
+                        <div class="fs-4 fw-bold">
+                            @FormatearMonto(saldo.TotalIngresos)
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="text-muted">
+                            Gastos
+                        </div>
+
+                        <div class="fs-4 fw-bold">
+                            @FormatearMonto(saldo.TotalGastos)
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="text-muted">
+                            Saldo
+                        </div>
+
+                        <div class="fs-4 fw-bold">
+                            @FormatearMonto(saldo.Saldo)
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    }
+
+    @if (transacciones.Count == 0)
+    {
+        <div class="alert alert-info">
+            La cuenta no tiene transacciones.
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body">
+
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Descripción</th>
+                            <th>Categoría</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                            <th class="text-end">
+                                Monto
+                            </th>
+                            <th class="text-end">
+                                Acciones
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var transaccion in transacciones)
+                        {
+                            <tr>
+                                <td>
+                                    @transaccion.FechaTransaccion.ToString("dd/MM/yyyy")
+                                </td>
+
+                                <td>
+                                    @transaccion.Descripcion
+                                </td>
+
+                                <td>
+                                    @ObtenerNombreCategoria(transaccion.CategoriaId)
+                                </td>
+
+                                <td>
+                                    @if (transaccion.Tipo == TipoTransaccion.Ingreso)
+                                    {
+                                        <span class="badge bg-success">
+                                            Ingreso
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">
+                                            Gasto
+                                        </span>
+                                    }
+                                </td>
+
+                                <td>
+                                    @if (transaccion.Estado == EstadoTransaccion.Activa)
+                                    {
+                                        <span class="badge bg-primary">
+                                            Activa
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">
+                                            Anulada
+                                        </span>
+                                    }
+                                </td>
+
+                                <td class="text-end">
+                                    @FormatearMonto(transaccion.Cantidad)
+                                </td>
+                                <td class="text-end">
+                                    @if(transaccion.Estado == EstadoTransaccion.Activa)
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary me-2"
+                                        @onclick="() => EditarTransaccion(transaccion.TransaccionId)">
+                                            Editar
+                                        </button>
+
+                                        <button class="btn btn-sm btn-outline-danger"
+                                        @onclick="() => AnularTransaccionAsync(transaccion.TransaccionId)">
+                                            Anular
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">
+                                            Sin acciones
+                                        </span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+
+                </table>
+
+            </div>
+        </div>
+    }
+}
+else if (UsuarioId != 0)
+{
+    <div class="alert alert-info">
+        Seleccione una cuenta.
+    </div>
+}
+else
+{
+    <div class="alert alert-info">
+        Seleccione un usuario para comenzar.
+    </div>
+}
+
+@code {
+    private List<UsuarioDto> usuarios = [];
+
+    private List<CuentaDto> cuentas = [];
+
+    private List<CategoriaDto> categorias = [];
+
+    private List<TransaccionDto> transacciones = [];
+
+    private SaldoCuentaDto? saldo;
+
+    [SupplyParameterFromQuery(Name = "usuarioId")]
+    private int UsuarioId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "cuentaId")]
+    private int CuentaId { get; set; }
+
+    private bool cargando = true;
+
+    private string? error;
+
+    private TransaccionFiltroDto filtro = new();
+
+    //
+    protected override async Task OnParametersSetAsync()
+    {
+        await InicializarAsync();
+    }
+
+    //
+    private async Task InicializarAsync()
+    {
+        try
+        {
+            cargando = true;
+            error = null;
+
+            var resultadoUsuarios = await UsuarioService.ObtenerTodosAsync();
+
+            usuarios = resultadoUsuarios.ToList();
+
+            if (UsuarioId == 0)
+            {
+                LimpiarContextoUsuario();
+                return;
+            }
+
+            var usuarioExiste = usuarios.Any(u => u.UsuarioId == UsuarioId);
+
+            if (!usuarioExiste)
+            {
+                error = "El usuario indicado no existe o está inactivo.";
+                LimpiarContextoUsuario();
+                return;
+            }
+
+            var cuentasTask = CuentaService.ObtenerPorUsuarioAsync(UsuarioId);
+
+            var categoriasTask = CategoriaService.ObtenerPorUsuarioAsync(UsuarioId);
+
+            await Task.WhenAll(cuentasTask, categoriasTask);
+
+            cuentas = (await cuentasTask).ToList();
+
+            categorias = (await categoriasTask).ToList();
+
+            if (CuentaId == 0)
+            {
+                LimpiarContextoCuenta();
+                return;
+            }
+
+            var cuentaValida = cuentas.Any(c => c.CuentaId == CuentaId);
+
+            if (!cuentaValida)
+            {
+                error = "La cuenta indicada no pertenece al usuario o está inactiva.";
+                LimpiarContextoCuenta();
+                return;
+            }
+
+            await CargarDatosCuentaAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error = "No fue posible cargar las transacciones.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    //
+    private void LimpiarContextoUsuario()
+    {
+        cuentas.Clear();
+        categorias.Clear();
+        transacciones.Clear();
+
+        saldo = null;
+
+        filtro = new TransaccionFiltroDto();
+    }
+
+    //
+    private void LimpiarContextoCuenta()
+    {
+        transacciones.Clear();
+
+        saldo = null;
+
+        filtro = new TransaccionFiltroDto();
+    }
+
+    private async Task CargarUsuariosAsync()
+    {
+        try
+        {
+            cargando = true;
+            error = null;
+
+            var resultado = await UsuarioService.ObtenerTodosAsync();
+            usuarios = resultado.ToList();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error =
+                "Ocurrió un error cargando los usuarios.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    //
+    private void UsuarioSeleccionado(ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out var nuevoUsuarioId))
+        {
+            nuevoUsuarioId = 0;
+        }
+
+        if (nuevoUsuarioId == 0)
+        {
+            Navigation.NavigateTo("/transacciones");
+            return;
+        }
+
+        Navigation.NavigateTo($"/transacciones?usuarioId={nuevoUsuarioId}");
+    }
+
+    //
+    private void CuentaSeleccionada(ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out var nuevaCuentaId))
+        {
+            nuevaCuentaId = 0;
+        }
+
+        if (nuevaCuentaId == 0)
+        {
+            Navigation.NavigateTo($"/transacciones?usuarioId={UsuarioId}");
+            return;
+        }
+
+        Navigation.NavigateTo($"/transacciones" + $"?usuarioId={UsuarioId}" + $"&cuentaId={nuevaCuentaId}");
+    }
+
+    //
+    private async Task CargarDatosCuentaAsync()
+    {
+        try
+        {
+            var transaccionesTask = TransaccionService.ObtenerPorCuentaAsync(CuentaId);
+
+            var saldoTask = TransaccionService.ObtenerSaldoCuentaAsync(CuentaId);
+
+            await Task.WhenAll(transaccionesTask,saldoTask);
+
+            transacciones = (await transaccionesTask).ToList();
+
+            saldo = await saldoTask;
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error =
+                "No fue posible cargar las transacciones.";
+        }
+    }
+
+    //
+    private string ObtenerNombreCategoria(int categoriaId)
+    {
+        return categorias
+            .FirstOrDefault(
+                c => c.CategoriaId == categoriaId)
+            ?.NombreCategoria
+            ?? "Categoría no disponible";
+    }
+
+    //
+    private static string FormatearMonto(decimal monto)
+    {
+        return $"₡{monto:N2}";
+    }
+
+    //
+    private async Task AplicarFiltrosAsync() 
+    {
+
+        error = null;
+
+        if (filtro.Desde.HasValue &&
+            filtro.Hasta.HasValue &&
+            filtro.Desde.Value > filtro.Hasta.Value)
+        {
+            error = "La fecha desde no puede ser posterior a la fecha hasta.";
+            return;
+        }
+
+        try
+        {
+            cargando = true;
+
+            var resultado = await TransaccionService.ObtenerPorCuentaAsync(CuentaId, filtro);
+
+            transacciones = resultado.ToList();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error =
+                "No fue posible aplicar los filtros.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    //
+    private async Task LimpiarFiltrosAsync()
+    {
+        filtro = new TransaccionFiltroDto();
+
+        error = null;
+
+        if (CuentaId == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            cargando = true;
+
+            var resultado = await TransaccionService.ObtenerPorCuentaAsync(CuentaId);
+
+            transacciones = resultado.ToList();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error =
+                "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error =
+                "No fue posible cargar las transacciones.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    //
+    private void CrearTransaccion()
+    {
+        Navigation.NavigateTo($"/transacciones/nueva" + $"?usuarioId={UsuarioId}" + $"&cuentaId={CuentaId}");
+    }
+
+    //
+    private void EditarTransaccion(int transaccionId)
+    {
+        Navigation.NavigateTo(
+            $"/transacciones/{transaccionId}/editar" +
+            $"?usuarioId={UsuarioId}" +
+            $"&cuentaId={CuentaId}"
+        );
+    }
+
+    //
+    private async Task AnularTransaccionAsync(int transaccionId)
+    {
+        try
+        {
+            error = null;
+
+            await TransaccionService.AnularAsync(transaccionId);
+
+            await RecargarCuentaAsync();
+        }
+        catch (ApiException ex)
+        {
+            error = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            error = "No fue posible comunicarse con la API.";
+        }
+        catch (Exception)
+        {
+            error = "Ocurrió un error anulando la transacción."; 
+        }
+    }
+
+    //Se usa dentro de AnularTransaccionAsync
+    private async Task RecargarCuentaAsync()
+    {
+        var transaccionesTask =
+            TransaccionService
+                .ObtenerPorCuentaAsync(
+                    CuentaId,
+                    filtro);
+
+        var saldoTask =
+            TransaccionService
+                .ObtenerSaldoCuentaAsync(
+                    CuentaId);
+
+        await Task.WhenAll(
+            transaccionesTask,
+            saldoTask);
+
+        transacciones =
+            (await transaccionesTask)
+                .ToList();
+
+        saldo =
+            await saldoTask;
+    }
+
+}
